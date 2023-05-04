@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">IOT App</string>
+    <string name="stop">Stop</string>
+    <string name="start">Start</string>
+    <string name="sensor_data">Sensor Data</string>
+    <string name="azure_data">Azure Data</string>
+</resources>
