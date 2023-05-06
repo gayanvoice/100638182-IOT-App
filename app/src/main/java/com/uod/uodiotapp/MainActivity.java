@@ -44,7 +44,7 @@ import java.util.concurrent.CountDownLatch;
 public class MainActivity extends Activity implements SensorEventListener {
     private SensorManager sensorManager;
     private Sensor cameraSensor;
-    private TextView cameraTextView, batteryTemperatureTextView, batteryMiscTextView, azureIotCameraTextView, azureIotBatteryTextView;
+    private TextView cameraTextView, batteryTemperatureTextView, azureIotCameraTextView, azureIotBatteryTextView;
     SparkView sparkViewIlluminance, sparkViewTemperature;
     private boolean isSensorEnabled = false;
     Queue<Double> illuminanceQueue = new LinkedList<Double>();
@@ -66,7 +66,6 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         cameraTextView = findViewById(R.id.cameraTextView);
         batteryTemperatureTextView = findViewById(R.id.batteryTemperatureTextView);
-        batteryMiscTextView = findViewById(R.id.batteryMiscTextView);
 
         azureIotCameraTextView = findViewById(R.id.azureIotCameraTextView);
         azureIotBatteryTextView = findViewById(R.id.azureIotBatteryTextView);
@@ -283,24 +282,12 @@ public class MainActivity extends Activity implements SensorEventListener {
 
             Gson gson = new Gson();
 
-            CameraTelemetryDataModel cameraTelemetryDataModel = new CameraTelemetryDataModel();
-            cameraTelemetryDataModel.setIlluminance(illuminance);
-
-            BatteryTelemetryDataModel batteryTelemetryDataModel = new BatteryTelemetryDataModel();
-            batteryTelemetryDataModel.setTemperature(temperature);
-            batteryTelemetryDataModel.setVoltage(voltage);
-            batteryTelemetryDataModel.setIsCharging(isCharging);
-            batteryTelemetryDataModel.setPower(power);
-
-
-
-            cameraTextView.setText("Camera " + gson.toJson(cameraTelemetryDataModel));
-            batteryTemperatureTextView.setText("Battery {\"temperature\":" + gson.toJson(batteryTelemetryDataModel.getTemperature()) + "}");
-            batteryMiscTextView.setText("Battery " + gson.toJson(batteryTelemetryDataModel));
+            cameraTextView.setText("Camera: Illuminance " + illuminance );
+            batteryTemperatureTextView.setText("Battery: Temperature " + temperature);
 
             try {
-                azureIotCameraTextView.setText("Azure IOT Camera: " + illuminanceArray.length);
-                azureIotBatteryTextView.setText("Azure IOT Battery: C[" + isChargingArray.length + "] P[" + powerArray.length + "] T[" + temperatureArray.length + "] V[" + voltageArray.length + "]");
+                azureIotCameraTextView.setText("Azure IOT Camera " + illuminanceArray.length);
+                azureIotBatteryTextView.setText("Azure IOT Battery " + temperatureArray.length);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -308,39 +295,39 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
 
     private void iotCameraInjection(double illuminance) throws IOException {
-        String iotInjectionFunctionAppUrl = "https://100638182-iot-ingestion-camera-function-app.azurewebsites.net/api/Light?Illuminance=" + illuminance
-                + "&code=8qL_rHSHV7eihZ8fr3HXDx5WlsNzY_I9zl5Pu8QBAP8MAzFu1x2hfQ==";
+        // https://100638182-iot-ingestion-function-app.azurewebsites.net/api/CameraIotIngestion?code=V5e04QVEZlCbqlzXDpaa-cJFXqYyHOH8lPszTdE2B_m0AzFuElHbJw==
+        String iotInjectionFunctionAppUrl = "https://100638182-iot-ingestion-function-app.azurewebsites.net/api/CameraIotIngestion?Illuminance=" + illuminance
+                + "&code=V5e04QVEZlCbqlzXDpaa-cJFXqYyHOH8lPszTdE2B_m0AzFuElHbJw==";
         RequestQueue queue = Volley.newRequestQueue(this);
         StringRequest stringRequest = new StringRequest(Request.Method.GET, iotInjectionFunctionAppUrl,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
-                        azureIotCameraTextView.setText("Azure IOT Camera: Illuminance" + illuminanceQueue.size() + " (Sync 5s)");
+                        azureIotCameraTextView.setText("Azure IOT Camera " + illuminanceQueue.size() + " (Sync 5s)");
                     }
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                azureIotCameraTextView.setText("Azure IOT Camera: Illuminance " + illuminanceQueue.size() + " (Sync Error)");
+                azureIotCameraTextView.setText("Azure IOT Camera " + illuminanceQueue.size() + " (Sync Error)");
                 stopCameraHttpHandler();
             }
         });
         queue.add(stringRequest);
     }
     private void iotBatteryInjection(double temperature, int voltage, boolean isCharging, String power) throws IOException {
-        //https://100638182-iot-ingestion-battery-function-app.azurewebsites.net/api/Info?code=0aUXylr-X1wVigs_xIAdUB3tuw7xgtkeXVukxPd6kN9kAzFuWepSPQ==
-        String iotInjectionFunctionAppUrl = "https://100638182-iot-ingestion-battery-function-app.azurewebsites.net/api/Info?Temperature=" + temperature +
-                "&Voltage=" + voltage + "&IsCharging=" + isCharging + "&Power=" + power + "&code=0aUXylr-X1wVigs_xIAdUB3tuw7xgtkeXVukxPd6kN9kAzFuWepSPQ==";
+        String iotInjectionFunctionAppUrl = "https://100638182-iot-ingestion-function-app.azurewebsites.net/api/BatteryIotIngestion?Temperature=" + temperature +
+                "&Voltage=" + voltage + "&IsCharging=" + isCharging + "&Power=" + power + "&code=bkxk1BEOY4X0RSRTCiZNA9_KDRb8LjupOvnxhSoEYQsUAzFu_5UDpg==";
         RequestQueue queue = Volley.newRequestQueue(this);
         StringRequest stringRequest = new StringRequest(Request.Method.GET, iotInjectionFunctionAppUrl,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
-                        azureIotBatteryTextView.setText("Azure IOT Battery: C[" + isChargingQueue.size() + "] P[" + powerQueue.size() + "] T[" + temperatureQueue.size() + "] V[" + voltageQueue.size() + "] (Sync 5s)");
+                        azureIotBatteryTextView.setText("Azure IOT Battery " + temperatureQueue.size() + " (Sync 5s)");
                     }
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                azureIotBatteryTextView.setText("Azure IOT Battery: C[" + isChargingQueue.size() + "] P[" + powerQueue.size() + "] T[" + temperatureQueue.size() + "] V[" + voltageQueue.size() + "] (Sync Error)");
+                azureIotBatteryTextView.setText("Azure IOT Battery " + temperatureQueue.size() + " (Sync Error)");
                 stopBatteryHttpHandler();
             }
         });

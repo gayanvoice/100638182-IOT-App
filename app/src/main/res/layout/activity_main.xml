@@ -16,8 +16,10 @@
         android:text="@string/azure_iot_camera"
         android:textSize="24sp"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.513"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
 
     <TextView
         android:id="@+id/azureIotBatteryTextView"
@@ -26,96 +28,71 @@
         android:layout_centerHorizontal="true"
         android:text="@string/azure_iot_battery"
         android:textSize="24sp"
+        app:layout_constraintBottom_toTopOf="@+id/scrollView2"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/azureIotCameraTextView" />
+        app:layout_constraintTop_toBottomOf="@+id/azureIotCameraTextView"
+        app:layout_constraintVertical_bias="0.25" />
 
-
-    <ScrollView
+    <LinearLayout
         android:id="@+id/scrollView2"
-        android:layout_width="409dp"
-        android:layout_height="602dp"
-        app:layout_constraintBottom_toTopOf="@+id/startButton"
+        android:layout_width="400dp"
+        android:layout_height="500dp"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/azureIotBatteryTextView">
+        app:layout_constraintTop_toTopOf="parent">
 
-        <LinearLayout
+
+        <TextView
+            android:id="@+id/cameraTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:text="@string/camera"
+            android:textAlignment="center"
+            android:textSize="20sp" />
 
-            <TextView
-                android:id="@+id/cameraTextView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/camera"
-                android:textAlignment="center"
-                android:textSize="20sp" />
+        <View
+            android:id="@+id/dividerCameraTop"
+            android:layout_width="match_parent"
+            android:layout_height="20dp" />
 
-            <View
-                android:id="@+id/dividerCameraTop"
-                android:layout_width="match_parent"
-                android:layout_height="20dp" />
+        <com.robinhood.spark.SparkView
+            android:id="@+id/sparkViewIlluminance"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            app:spark_lineColor="@color/purple_200" />
 
-            <com.robinhood.spark.SparkView
-                android:id="@+id/sparkViewIlluminance"
-                android:layout_width="match_parent"
-                android:layout_height="200dp"
-                app:spark_lineColor="@color/purple_200" />
+        <View
+            android:id="@+id/dividerCameraBottom"
+            android:layout_width="match_parent"
+            android:layout_height="20dp" />
 
-            <View
-                android:id="@+id/dividerCameraBottom"
-                android:layout_width="match_parent"
-                android:layout_height="20dp" />
+        <TextView
+            android:id="@+id/batteryTemperatureTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:text="@string/battery"
+            android:textAlignment="center"
+            android:textSize="20sp" />
 
-            <TextView
-                android:id="@+id/batteryTemperatureTextView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingLeft="10dp"
-                android:paddingRight="10dp"
-                android:text="@string/battery"
-                android:textAlignment="center"
-                android:textSize="20sp" />
-
-            <View
-                android:id="@+id/dividerBatteryTemperatureTop"
-                android:layout_width="match_parent"
-                android:layout_height="20dp" />
+        <View
+            android:id="@+id/dividerBatteryTemperatureTop"
+            android:layout_width="match_parent"
+            android:layout_height="20dp" />
 
 
-            <com.robinhood.spark.SparkView
-                android:id="@+id/sparkViewTemperature"
-                android:layout_width="wrap_content"
-                android:layout_height="200dp"
-                app:spark_lineColor="@color/purple_200" />
-
-            <View
-                android:id="@+id/dividerBatteryTemperatureBottom"
-                android:layout_width="match_parent"
-                android:layout_height="20dp" />
+        <com.robinhood.spark.SparkView
+            android:id="@+id/sparkViewTemperature"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            app:spark_lineColor="@color/teal_200" />
 
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/batteryMiscTextView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="20dp"
-                    android:layout_marginRight="20dp"
-                    android:text="@string/battery"
-                    android:textAlignment="center"
-                    android:textSize="20sp" />
-
-            </LinearLayout>
-
-        </LinearLayout>
-    </ScrollView>
+    </LinearLayout>
 
     <Button
         android:id="@+id/startButton"
@@ -123,10 +100,12 @@
         android:layout_height="wrap_content"
         android:layout_centerHorizontal="true"
         android:text="@string/start"
+        android:theme="@style/Button.Purple"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/stopButton"
         app:layout_constraintHorizontal_bias="0.49"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/scrollView2" />
 
     <Button
         android:id="@+id/stopButton"
@@ -139,6 +118,7 @@
         android:text="@string/stop"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/scrollView2"
         app:layout_constraintVertical_bias="0.498" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
