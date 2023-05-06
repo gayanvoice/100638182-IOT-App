@@ -4,4 +4,8 @@
     <string name="start">Start</string>
     <string name="sensor_data">Sensor Data</string>
     <string name="azure_data">Azure Data</string>
+    <string name="camera">Camera</string>
+    <string name="battery">Battery</string>
+    <string name="azure_iot_camera">Azure IOT Camera</string>
+    <string name="azure_iot_battery">Azure IOT Battery</string>
 </resources>

@@ -1,11 +1,9 @@
 package com.uod.uodiotapp;
 
-public class TelemetryDataModel {
+public class CameraTelemetryDataModel {
     private double illuminance;
 
-    public TelemetryDataModel(double illuminance) {
-        this.illuminance = illuminance;
-    }
+    public CameraTelemetryDataModel() { }
 
     public double getIlluminance() {
         return illuminance;

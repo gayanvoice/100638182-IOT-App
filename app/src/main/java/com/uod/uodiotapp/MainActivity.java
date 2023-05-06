@@ -1,11 +1,15 @@
 package com.uod.uodiotapp;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -22,6 +26,7 @@ import com.android.volley.toolbox.Volley;
 import com.android.volley.Request;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.gson.Gson;
 import com.robinhood.spark.SparkView;
 
 import java.io.BufferedReader;
@@ -32,27 +37,39 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.CountDownLatch;
 
 public class MainActivity extends Activity implements SensorEventListener {
     private SensorManager sensorManager;
-    private Sensor lightSensor;
-    private TextView sensorTextView, azureTextView;
-    SparkView sparkView;
+    private Sensor cameraSensor;
+    private TextView cameraTextView, batteryTemperatureTextView, batteryMiscTextView, azureIotCameraTextView, azureIotBatteryTextView;
+    SparkView sparkViewIlluminance, sparkViewTemperature;
     private boolean isSensorEnabled = false;
-    //ArrayList<Float> yDataArray = new ArrayList<>();
-    Queue<Float> yQueue = new LinkedList<Float>();
+    Queue<Double> illuminanceQueue = new LinkedList<Double>();
+    Queue<Double> temperatureQueue = new LinkedList<Double>();
+    Queue<Integer> voltageQueue = new LinkedList<Integer>();
+    Queue<Boolean> isChargingQueue = new LinkedList<Boolean>();
+    Queue<String> powerQueue = new LinkedList<String>();
 
-    private Handler httpHandler = new Handler();
-    boolean isHttpHandler = false;
+    private Handler cameraHandler = new Handler();
+    private Handler batteryHandler = new Handler();
+    boolean isCameraHttpHandler = false;
+    boolean isBatteryHttpHandler = false;
+
 
     @Override
     public final void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        sensorTextView = findViewById(R.id.sensorTextView);
-        azureTextView = findViewById(R.id.azureTextView);
+        cameraTextView = findViewById(R.id.cameraTextView);
+        batteryTemperatureTextView = findViewById(R.id.batteryTemperatureTextView);
+        batteryMiscTextView = findViewById(R.id.batteryMiscTextView);
+
+        azureIotCameraTextView = findViewById(R.id.azureIotCameraTextView);
+        azureIotBatteryTextView = findViewById(R.id.azureIotBatteryTextView);
 
         Button startButton = findViewById(R.id.startButton);
         Button stopButton = findViewById(R.id.stopButton);
@@ -60,27 +77,25 @@ public class MainActivity extends Activity implements SensorEventListener {
         startButton.setEnabled(true);
         stopButton.setEnabled(false);
 
-        sparkView = (SparkView) findViewById(R.id.sparkview);
+        sparkViewIlluminance = (SparkView) findViewById(R.id.sparkViewIlluminance);
+        sparkViewTemperature = (SparkView) findViewById(R.id.sparkViewTemperature);
 
-        // Get an instance of the sensor service, and use that to get an instance of
-        // a particular sensor.
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+        cameraSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
 
-        if(lightSensor == null){
-            sensorTextView.setText("Sensor.TYPE_LIGHT not Available");
+        if(cameraSensor == null){
+            cameraTextView.setText("Sensor.TYPE_LIGHT not Available");
         } else {
-            sensorTextView.setText("Sensor.TYPE_LIGHT Available");
+            cameraTextView.setText("Sensor.TYPE_LIGHT Available");
         }
-
-
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 isSensorEnabled = true;
                 startButton.setEnabled(false);
                 stopButton.setEnabled(true);
-                stop();
+                stopCameraHttpHandler();
+                stopBatteryHttpHandler();
             }
         });
 
@@ -90,42 +105,129 @@ public class MainActivity extends Activity implements SensorEventListener {
                 isSensorEnabled = false;
                 startButton.setEnabled(true);
                 stopButton.setEnabled(false);
-                start();
+                startCameraHttpHandler();
+                startBatteryHttpHandler();
             }
         });
 
     }
-    private final Runnable runnable = new Runnable() {
+
+    private final Runnable cameraRunnable = new Runnable() {
         @Override
         public void run() {
             try {
-                if(yQueue.size() > 0){
-                    float illuminance = yQueue.poll();
-                    iotInjection(illuminance);
+                if(illuminanceQueue.size() > 0){
+                    double illuminance = illuminanceQueue.poll();
+                    iotCameraInjection(illuminance);
                 }
                 else {
-                    azureTextView.setText("Azure IOT (Sync Complete)");
-                    stop();
+                    azureIotCameraTextView.setText("Azure IOT Camera (Sync Complete)");
+                    stopCameraHttpHandler();
                 }
             } catch (IOException e) {
-                azureTextView.setText("Azure IOT (Sync Complete)");
+                azureIotCameraTextView.setText("Azure IOT Camera (Sync Error)" + e);
+                stopCameraHttpHandler();
             }
-            if(isHttpHandler) {
-                start();
+            if(isCameraHttpHandler) {
+                startCameraHttpHandler();
             }
         }
     };
-
-    public void stop() {
-        isHttpHandler = false;
-        httpHandler.removeCallbacks(runnable);
+    private final Runnable batteryRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if(temperatureQueue.size() > 0 && voltageQueue.size() > 0 && isChargingQueue.size() > 0 && powerQueue.size() > 0){
+                    double temperature = temperatureQueue.poll();
+                    int voltage = voltageQueue.poll();
+                    boolean isCharging = isChargingQueue.poll();
+                    String power = powerQueue.poll();
+                    iotBatteryInjection(temperature, voltage, isCharging, power);
+                }
+                else {
+                    azureIotBatteryTextView.setText("Azure IOT Battery (Sync Complete)");
+                    stopBatteryHttpHandler();
+                }
+            } catch (IOException e) {
+                azureIotBatteryTextView.setText("Azure IOT Battery (Sync Error)" + e);
+                stopBatteryHttpHandler();
+            }
+            if(isBatteryHttpHandler) {
+                startBatteryHttpHandler();
+            }
+        }
+    };
+    public void stopCameraHttpHandler() {
+        isCameraHttpHandler = false;
+        cameraHandler.removeCallbacks(cameraRunnable);
     }
 
-    public void start() {
-        isHttpHandler = true;
-        httpHandler.postDelayed(runnable, 5000);
+    public void startCameraHttpHandler() {
+        isCameraHttpHandler = true;
+        cameraHandler.postDelayed(cameraRunnable, 5000);
+    }
+    public void stopBatteryHttpHandler() {
+        isBatteryHttpHandler = false;
+        batteryHandler.removeCallbacks(batteryRunnable);
     }
 
+    public void startBatteryHttpHandler() {
+        isBatteryHttpHandler = true;
+        batteryHandler.postDelayed(batteryRunnable, 5000);
+    }
+    private void getBatteryTemperature() {
+        BroadcastReceiver batteryLevelReceiver = new BroadcastReceiver() {
+            public void onReceive(Context context, Intent intent) {
+                context.unregisterReceiver(this);
+                temperatureQueue.add(((intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0))/10.0));
+            }
+        };
+        IntentFilter batteryLevelFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        registerReceiver(batteryLevelReceiver, batteryLevelFilter);
+    }
+    private void getBatteryVoltage() {
+        BroadcastReceiver batteryLevelReceiver = new BroadcastReceiver() {
+            public void onReceive(Context context, Intent intent) {
+                context.unregisterReceiver(this);
+                voltageQueue.add(intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0));
+            }
+        };
+        IntentFilter batteryLevelFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        registerReceiver(batteryLevelReceiver, batteryLevelFilter);
+    }
+    private void getBatteryIsCharging() {
+        BroadcastReceiver batteryLevelReceiver = new BroadcastReceiver() {
+            public void onReceive(Context context, Intent intent) {
+                context.unregisterReceiver(this);
+                if(intent.getIntExtra(BatteryManager.EXTRA_STATUS, 0) == BatteryManager.BATTERY_STATUS_CHARGING) {
+                    isChargingQueue.add(true);
+                }
+                else {
+                    isChargingQueue.add(false);
+                }
+
+            }
+        };
+        IntentFilter batteryLevelFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        registerReceiver(batteryLevelReceiver, batteryLevelFilter);
+    }
+    private void getBatteryPower() {
+        BroadcastReceiver batteryLevelReceiver = new BroadcastReceiver() {
+            public void onReceive(Context context, Intent intent) {
+                context.unregisterReceiver(this);
+                int chargePlug = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
+                if(chargePlug == 2) {
+                    powerQueue.add("USB");
+                }
+                else {
+                    powerQueue.add("BATTERY");
+                }
+
+            }
+        };
+        IntentFilter batteryLevelFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+        registerReceiver(batteryLevelReceiver, batteryLevelFilter);
+    }
     @Override
     public final void onAccuracyChanged(Sensor sensor, int accuracy) {
         // Do something here if sensor accuracy changes.
@@ -134,46 +236,121 @@ public class MainActivity extends Activity implements SensorEventListener {
     @Override
     public final void onSensorChanged(SensorEvent event) {
         if(isSensorEnabled){
-            float illuminance = event.values[0];
-            yQueue.add(illuminance);
-            double[] doubleArray = yQueue.stream()
-                    .mapToDouble(f -> f != null ? f : Float.NaN)
+            double illuminance = event.values[0];
+            double temperature = 0.0;
+            int voltage = 0;
+            boolean isCharging = false;
+            String power = null;
+
+            getBatteryTemperature();
+            getBatteryVoltage();
+            getBatteryIsCharging();
+            getBatteryPower();
+
+            illuminanceQueue.add(illuminance);
+
+            double[] illuminanceArray = illuminanceQueue.stream()
+                    .mapToDouble(d -> d != null ? d : Double.NaN)
                     .toArray();
-            sparkView.setAdapter(new IotSparkAdapter(doubleArray));
-            sensorTextView.setText("Illuminance: " + illuminance);
+            double[] temperatureArray = temperatureQueue.stream()
+                    .mapToDouble(d -> d != null ? d : Double.NaN)
+                    .toArray();
+            int[] voltageArray = voltageQueue.stream()
+                    .mapToInt(i -> i != null ? i : 0)
+                    .toArray();
+
+            Object [] isChargingArray = isChargingQueue.toArray();
+            Object [] powerArray = powerQueue.toArray();
+
+            sparkViewIlluminance.setAdapter(new IotSparkAdapter(illuminanceArray));
+            sparkViewTemperature.setAdapter(new IotSparkAdapter(temperatureArray));
+
+            if(temperatureArray.length > 0){
+                temperature = temperatureArray[temperatureArray.length - 1];
+            }
+
+            if(voltageArray.length > 0){
+                voltage = voltageArray[voltageArray.length - 1];
+            }
+
+            if(isChargingArray.length > 0){
+                isCharging = (boolean) isChargingArray[isChargingArray.length - 1];
+            }
+
+            if(powerArray.length > 0){
+                power = (String) powerArray[powerArray.length - 1];
+            }
+
+            Gson gson = new Gson();
+
+            CameraTelemetryDataModel cameraTelemetryDataModel = new CameraTelemetryDataModel();
+            cameraTelemetryDataModel.setIlluminance(illuminance);
+
+            BatteryTelemetryDataModel batteryTelemetryDataModel = new BatteryTelemetryDataModel();
+            batteryTelemetryDataModel.setTemperature(temperature);
+            batteryTelemetryDataModel.setVoltage(voltage);
+            batteryTelemetryDataModel.setIsCharging(isCharging);
+            batteryTelemetryDataModel.setPower(power);
+
+
+
+            cameraTextView.setText("Camera " + gson.toJson(cameraTelemetryDataModel));
+            batteryTemperatureTextView.setText("Battery {\"temperature\":" + gson.toJson(batteryTelemetryDataModel.getTemperature()) + "}");
+            batteryMiscTextView.setText("Battery " + gson.toJson(batteryTelemetryDataModel));
 
             try {
-                azureTextView.setText("Azure IOT: " + doubleArray.length);
+                azureIotCameraTextView.setText("Azure IOT Camera: " + illuminanceArray.length);
+                azureIotBatteryTextView.setText("Azure IOT Battery: C[" + isChargingArray.length + "] P[" + powerArray.length + "] T[" + temperatureArray.length + "] V[" + voltageArray.length + "]");
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    private void iotInjection(float illuminance) throws IOException {
-        String iotInjectionFunctionAppUrl = "https://uod-iot-injection-function-app.azurewebsites.net/api/Illuminance?data=" + illuminance + "&code=hlFiLZQYuBpfxOWSP4F9QW-Ez463rNP7R28YacmuwELmAzFu1v1jdQ==";
+    private void iotCameraInjection(double illuminance) throws IOException {
+        String iotInjectionFunctionAppUrl = "https://100638182-iot-ingestion-camera-function-app.azurewebsites.net/api/Light?Illuminance=" + illuminance
+                + "&code=8qL_rHSHV7eihZ8fr3HXDx5WlsNzY_I9zl5Pu8QBAP8MAzFu1x2hfQ==";
         RequestQueue queue = Volley.newRequestQueue(this);
         StringRequest stringRequest = new StringRequest(Request.Method.GET, iotInjectionFunctionAppUrl,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
-                        azureTextView.setText("Azure IOT: " + yQueue.size() + " (Sync 5s)");
+                        azureIotCameraTextView.setText("Azure IOT Camera: Illuminance" + illuminanceQueue.size() + " (Sync 5s)");
                     }
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                azureTextView.setText("Azure IOT: " + yQueue.size() + " (Sync Error)");
-                stop();
+                azureIotCameraTextView.setText("Azure IOT Camera: Illuminance " + illuminanceQueue.size() + " (Sync Error)");
+                stopCameraHttpHandler();
             }
         });
         queue.add(stringRequest);
     }
-
+    private void iotBatteryInjection(double temperature, int voltage, boolean isCharging, String power) throws IOException {
+        //https://100638182-iot-ingestion-battery-function-app.azurewebsites.net/api/Info?code=0aUXylr-X1wVigs_xIAdUB3tuw7xgtkeXVukxPd6kN9kAzFuWepSPQ==
+        String iotInjectionFunctionAppUrl = "https://100638182-iot-ingestion-battery-function-app.azurewebsites.net/api/Info?Temperature=" + temperature +
+                "&Voltage=" + voltage + "&IsCharging=" + isCharging + "&Power=" + power + "&code=0aUXylr-X1wVigs_xIAdUB3tuw7xgtkeXVukxPd6kN9kAzFuWepSPQ==";
+        RequestQueue queue = Volley.newRequestQueue(this);
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, iotInjectionFunctionAppUrl,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        azureIotBatteryTextView.setText("Azure IOT Battery: C[" + isChargingQueue.size() + "] P[" + powerQueue.size() + "] T[" + temperatureQueue.size() + "] V[" + voltageQueue.size() + "] (Sync 5s)");
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                azureIotBatteryTextView.setText("Azure IOT Battery: C[" + isChargingQueue.size() + "] P[" + powerQueue.size() + "] T[" + temperatureQueue.size() + "] V[" + voltageQueue.size() + "] (Sync Error)");
+                stopBatteryHttpHandler();
+            }
+        });
+        queue.add(stringRequest);
+    }
     @Override
     protected void onResume() {
         // Register a listener for the sensor.
         super.onResume();
-        sensorManager.registerListener(this, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(this, cameraSensor, SensorManager.SENSOR_DELAY_NORMAL);
     }
 
     @Override
@@ -182,5 +359,6 @@ public class MainActivity extends Activity implements SensorEventListener {
         super.onPause();
         sensorManager.unregisterListener(this);
     }
+
 
 }
